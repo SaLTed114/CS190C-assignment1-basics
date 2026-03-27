@@ -123,6 +123,7 @@ class RMSNorm(nn.Module):
         self.d_model = d_model
         self.eps = eps
         self.weight = nn.Parameter(torch.empty((d_model,), device=device, dtype=dtype))
+        self.reset_parameters()
 
     def reset_parameters(self) -> None:
         with torch.no_grad():

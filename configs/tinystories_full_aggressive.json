@@ -1,0 +1,41 @@
+{
+  "experiment_name": "tinystories_full_aggressive",
+  "out_dir": "artifacts/tinystories_full_aggressive",
+  "data": {
+    "train_npy": "artifacts/tinystories_full_8k/train.npy",
+    "valid_npy": "artifacts/tinystories_full_8k/valid.npy",
+    "tokenizer_path": "artifacts/tinystories_full_8k/tokenizer.pkl",
+    "meta_path": "artifacts/tinystories_full_8k/meta.json"
+  },
+  "model": {
+    "vocab_size": 8192,
+    "context_length": 512,
+    "d_model": 768,
+    "num_layers": 12,
+    "num_heads": 12,
+    "d_ff": 3072,
+    "theta": 10000.0,
+    "eps": 1e-05
+  },
+  "optim": {
+    "lr": 0.00012,
+    "min_lr": 0.000012,
+    "warmup_steps": 800,
+    "weight_decay": 0.1,
+    "grad_clip": 1.0,
+    "betas": [0.9, 0.95],
+    "eps": 1e-08
+  },
+  "train": {
+    "batch_size": 16,
+    "max_steps": 15000,
+    "eval_every": 300,
+    "eval_steps": 20,
+    "log_every": 20,
+    "save_every": 500,
+    "device": "auto",
+    "seed": 42,
+    "compile_model": false,
+    "num_workers": 0
+  }
+}

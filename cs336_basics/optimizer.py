@@ -94,35 +94,35 @@ class AdamW(Optimizer):
                 if p.grad is None:
                     continue
 
-            grad = p.grad
-            if grad.is_sparse:
-                raise RuntimeError('AdamW does not support sparse gradients')
-            
-            state = self.state[p]
+                grad = p.grad
+                if grad.is_sparse:
+                    raise RuntimeError('AdamW does not support sparse gradients')
+                
+                state = self.state[p]
 
-            if len(state) == 0:
-                state['step'] = 0
-                state['exp_avg'] = torch.zeros_like(p, memory_format=torch.preserve_format)
-                state['exp_avg_sq'] = torch.zeros_like(p, memory_format=torch.preserve_format)
+                if len(state) == 0:
+                    state['step'] = 0
+                    state['exp_avg'] = torch.zeros_like(p, memory_format=torch.preserve_format)
+                    state['exp_avg_sq'] = torch.zeros_like(p, memory_format=torch.preserve_format)
 
-            exp_avg, exp_avg_sq = state['exp_avg'], state['exp_avg_sq']
+                exp_avg, exp_avg_sq = state['exp_avg'], state['exp_avg_sq']
 
-            state['step'] += 1
-            step = state['step']
+                state['step'] += 1
+                step = state['step']
 
-            if weight_decay != 0:
-                p.mul_(1 - lr * weight_decay)
+                if weight_decay != 0:
+                    p.mul_(1 - lr * weight_decay)
 
-            exp_avg.mul_(beta1).add_(grad, alpha=1 - beta1)
-            exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=1 - beta2)
+                exp_avg.mul_(beta1).add_(grad, alpha=1 - beta1)
+                exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=1 - beta2)
 
-            bias_correction1 = 1 - beta1 ** step
-            bias_correction2 = 1 - beta2 ** step
+                bias_correction1 = 1 - beta1 ** step
+                bias_correction2 = 1 - beta2 ** step
 
-            exp_avg_hat = exp_avg / bias_correction1
-            exp_avg_sq_hat = exp_avg_sq / bias_correction2
+                exp_avg_hat = exp_avg / bias_correction1
+                exp_avg_sq_hat = exp_avg_sq / bias_correction2
 
-            denom = exp_avg_sq_hat.sqrt().add_(eps)
-            p.addcdiv_(exp_avg_hat, denom, value=-lr)
+                denom = exp_avg_sq_hat.sqrt().add_(eps)
+                p.addcdiv_(exp_avg_hat, denom, value=-lr)
 
         return loss

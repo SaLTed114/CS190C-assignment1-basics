@@ -4,6 +4,7 @@ import json
 from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Iterable, Iterator
+from tqdm import tqdm
 
 import regex as re
 
@@ -42,10 +43,10 @@ def pretokenize_excluding_special_tokens(text: str, special_tokens: list[str]) -
     
     pieces: list[str] = []
     pos = 0
-    for match in pattern.finditer(text):
-        if match.start() > pos:
-            pieces.extend(pretokenize(text[pos:match.start()]))
-        pos = match.end()
+    for m in pattern.finditer(text):
+        if m.start() > pos:
+            pieces.extend(pretokenize(text[pos:m.start()]))
+        pos = m.end()
 
     if pos < len(text):
         pieces.extend(pretokenize(text[pos:]))
@@ -76,8 +77,38 @@ def merge_word_ids(word: tuple[int, ...], pair: tuple[int, int], new_id: int) ->
 def train_bpe(input_path: str | Path, vocab_size: int, special_tokens: list[str]) -> tuple[dict[int, bytes], list[tuple[bytes, bytes]]]:
     text = Path(input_path).read_text(encoding='utf-8')
 
-    pieces = pretokenize_excluding_special_tokens(text, special_tokens)
-    word_freq: Counter[tuple[int, ...]] = Counter(word_to_initial_ids(piece) for piece in pieces)
+    word_freq: Counter[tuple[int, ...]] = Counter()
+
+    pbar = tqdm(total=len(text), desc="Counting word frequencies")
+
+    if not special_tokens:
+        pos = 0
+        for m in GPT2_PRETOKENIZER_PATTERN.finditer(text):
+            word_freq[word_to_initial_ids(m.group(0))] += 1
+            pbar.update(m.end() - pos)
+            pos = m.end()
+        pbar.update(len(text) - pos)
+    else:
+        escaped = sorted((re.escape(st) for st in special_tokens), key=len, reverse=True)
+        pattern = re.compile('|'.join(escaped))
+        
+        pos = 0
+        for m in pattern.finditer(text):
+            start = m.start()
+            if start > pos:
+                chunk = text[pos:start]
+                for tm in GPT2_PRETOKENIZER_PATTERN.finditer(chunk):
+                    word_freq[word_to_initial_ids(tm.group(0))] += 1
+            pbar.update(m.end() - pos)
+            pos = m.end()
+        
+        if pos < len(text):
+            chunk = text[pos:]
+            for tm in GPT2_PRETOKENIZER_PATTERN.finditer(chunk):
+                word_freq[word_to_initial_ids(tm.group(0))] += 1
+            pbar.update(len(text) - pos)
+
+    pbar.close()
 
     id_to_token: dict[int, bytes] = {i: bytes([i]) for i in range(256)}
     merges_ids: list[tuple[int, int]] = []
@@ -94,7 +125,7 @@ def train_bpe(input_path: str | Path, vocab_size: int, special_tokens: list[str]
             pair_counts[pair] += freq
             pair_to_words[pair].add(word)
 
-    for _ in range(target_num_merges):
+    for _ in tqdm(range(target_num_merges), desc="Training BPE"):
         if not pair_counts:
             break
 
@@ -218,8 +249,8 @@ class BPETokenizer:
         out.extend(symbols)
 
     def _encode_ordinary_into(self, text: str, start: int, end: int, out: list[int]) -> None:
-        for match in GPT2_PRETOKENIZER_PATTERN.finditer(text, start, end):
-            self._encode_piece_into(match.group(0), out)
+        for m in GPT2_PRETOKENIZER_PATTERN.finditer(text, start, end):
+            self._encode_piece_into(m.group(0), out)
 
     def encode(self, text: str) -> list[int]:
         out: list[int] = []
@@ -229,13 +260,13 @@ class BPETokenizer:
             return out
         
         pos = 0
-        for match in self.special_pattern.finditer(text):
-            start, end = match.span()
+        for m in self.special_pattern.finditer(text):
+            start, end = m.span()
 
             if start > pos:
                 self._encode_ordinary_into(text, pos, start, out)
 
-            out.append(self.special_str_to_id[match.group(0)])
+            out.append(self.special_str_to_id[m.group(0)])
             pos = end
 
         if pos < len(text):
@@ -244,7 +275,7 @@ class BPETokenizer:
         return out
 
     def encode_iterable(self, iterable: Iterable[str]) -> Iterator[int]:
-        for chunk in iterable:
+        for chunk in tqdm(iterable, desc="Encoding"):
             yield from self.encode(chunk)
 
     def decode(self, token_ids: Iterable[int]) -> str:
